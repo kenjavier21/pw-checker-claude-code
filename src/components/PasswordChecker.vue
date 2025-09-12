@@ -29,25 +29,38 @@
     <div class="requirements" v-if="password.length > 0">
       <h3>Requirements:</h3>
       <ul>
-        <li :class="{ met: hasMinLength }">
-          <span class="check">{{ hasMinLength ? '✓' : '✗' }}</span>
+        <li :class="{ met: strengthData.requirements.minLength }">
+          <span class="check">{{ strengthData.requirements.minLength ? '✓' : '✗' }}</span>
           At least 8 characters
         </li>
-        <li :class="{ met: hasUppercase }">
-          <span class="check">{{ hasUppercase ? '✓' : '✗' }}</span>
+        <li :class="{ met: strengthData.requirements.hasUppercase }">
+          <span class="check">{{ strengthData.requirements.hasUppercase ? '✓' : '✗' }}</span>
           Contains uppercase letter
         </li>
-        <li :class="{ met: hasLowercase }">
-          <span class="check">{{ hasLowercase ? '✓' : '✗' }}</span>
+        <li :class="{ met: strengthData.requirements.hasLowercase }">
+          <span class="check">{{ strengthData.requirements.hasLowercase ? '✓' : '✗' }}</span>
           Contains lowercase letter
         </li>
-        <li :class="{ met: hasNumber }">
-          <span class="check">{{ hasNumber ? '✓' : '✗' }}</span>
+        <li :class="{ met: strengthData.requirements.hasNumbers }">
+          <span class="check">{{ strengthData.requirements.hasNumbers ? '✓' : '✗' }}</span>
           Contains number
         </li>
-        <li :class="{ met: hasSpecialChar }">
-          <span class="check">{{ hasSpecialChar ? '✓' : '✗' }}</span>
+        <li :class="{ met: strengthData.requirements.hasSpecialChars }">
+          <span class="check">{{ strengthData.requirements.hasSpecialChars ? '✓' : '✗' }}</span>
           Contains special character
+        </li>
+        <li :class="{ met: strengthData.requirements.notCommon }">
+          <span class="check">{{ strengthData.requirements.notCommon ? '✓' : '✗' }}</span>
+          Not a common password
+        </li>
+      </ul>
+    </div>
+
+    <div class="feedback" v-if="strengthData.feedback.length > 0">
+      <h3>Suggestions:</h3>
+      <ul>
+        <li v-for="(suggestion, index) in strengthData.feedback" :key="index">
+          {{ suggestion }}
         </li>
       </ul>
     </div>
@@ -56,55 +69,46 @@
 
 <script>
 import { ref, computed } from 'vue'
+import { checkPasswordStrength } from '../utils/passwordStrength.js'
 
 export default {
   name: 'PasswordChecker',
   setup() {
     const password = ref('')
     
-    const hasMinLength = computed(() => password.value.length >= 8)
-    const hasUppercase = computed(() => /[A-Z]/.test(password.value))
-    const hasLowercase = computed(() => /[a-z]/.test(password.value))
-    const hasNumber = computed(() => /\d/.test(password.value))
-    const hasSpecialChar = computed(() => /[!@#$%^&*(),.?":{}|<>]/.test(password.value))
-    
-    const strengthScore = computed(() => {
-      let score = 0
-      if (hasMinLength.value) score++
-      if (hasUppercase.value) score++
-      if (hasLowercase.value) score++
-      if (hasNumber.value) score++
-      if (hasSpecialChar.value) score++
-      return score
+    const strengthData = computed(() => {
+      if (password.value.length === 0) {
+        return {
+          strength: 'weak',
+          score: 0,
+          feedback: [],
+          requirements: {
+            minLength: false,
+            hasUppercase: false,
+            hasLowercase: false,
+            hasNumbers: false,
+            hasSpecialChars: false,
+            notCommon: true
+          }
+        }
+      }
+      return checkPasswordStrength(password.value)
     })
     
     const strengthText = computed(() => {
       if (password.value.length === 0) return ''
-      switch (strengthScore.value) {
-        case 0:
-        case 1: return 'Very Weak'
-        case 2: return 'Weak'
-        case 3: return 'Fair'
-        case 4: return 'Good'
-        case 5: return 'Strong'
-        default: return ''
-      }
+      const strength = strengthData.value.strength
+      return strength.charAt(0).toUpperCase() + strength.slice(1)
     })
     
     const strengthClass = computed(() => {
-      switch (strengthScore.value) {
-        case 0:
-        case 1: return 'very-weak'
-        case 2: return 'weak'
-        case 3: return 'fair'
-        case 4: return 'good'
-        case 5: return 'strong'
-        default: return ''
-      }
+      return strengthData.value.strength
     })
     
     const strengthPercentage = computed(() => {
-      return (strengthScore.value / 5) * 100
+      if (password.value.length === 0) return 0
+      const maxScore = 8
+      return Math.min((strengthData.value.score / maxScore) * 100, 100)
     })
     
     const checkStrength = () => {
@@ -114,11 +118,7 @@ export default {
     
     return {
       password,
-      hasMinLength,
-      hasUppercase,
-      hasLowercase,
-      hasNumber,
-      hasSpecialChar,
+      strengthData,
       strengthText,
       strengthClass,
       strengthPercentage,
@@ -191,24 +191,14 @@ label {
   font-size: 18px;
 }
 
-.very-weak {
+.weak {
   background-color: #ff4757;
   color: #ff4757;
 }
 
-.weak {
-  background-color: #ff6b3d;
-  color: #ff6b3d;
-}
-
-.fair {
+.medium {
   background-color: #ffa726;
   color: #ffa726;
-}
-
-.good {
-  background-color: #66bb6a;
-  color: #66bb6a;
 }
 
 .strong {
@@ -216,21 +206,22 @@ label {
   color: #4caf50;
 }
 
-.requirements {
+.requirements, .feedback {
   text-align: left;
+  margin-bottom: 20px;
 }
 
-.requirements h3 {
+.requirements h3, .feedback h3 {
   color: #333;
   margin-bottom: 15px;
 }
 
-.requirements ul {
+.requirements ul, .feedback ul {
   list-style: none;
   padding: 0;
 }
 
-.requirements li {
+.requirements li, .feedback li {
   padding: 8px 0;
   color: #666;
   transition: color 0.3s;
@@ -238,6 +229,12 @@ label {
 
 .requirements li.met {
   color: #4caf50;
+}
+
+.feedback li {
+  padding: 5px 0;
+  color: #555;
+  font-size: 14px;
 }
 
 .check {
